@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2c1810">
+  <title>Library Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <h1>Library Tracker</h1>
+  </header>
+
+  <!-- Views -->
+  <main class="app-main">
+
+    <!-- Scan View -->
+    <section id="view-scan" class="view active">
+      <div id="scanner-container">
+        <div id="scanner-region"></div>
+        <p class="scanner-hint">Point your camera at a book's barcode</p>
+      </div>
+      <div id="manual-entry">
+        <span class="divider-text">or enter ISBN manually</span>
+        <form id="isbn-form">
+          <input type="text" id="isbn-input" inputmode="numeric" placeholder="e.g. 9780140449136" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Look up</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Book Detail / Confirm View -->
+    <section id="view-confirm" class="view">
+      <div class="book-detail-card">
+        <div class="book-detail-top">
+          <img id="confirm-cover" class="book-cover-large" src="" alt="Book cover">
+          <div class="book-detail-info">
+            <h2 id="confirm-title"></h2>
+            <p id="confirm-author" class="book-author"></p>
+            <p id="confirm-publisher" class="book-meta"></p>
+            <p id="confirm-year" class="book-meta"></p>
+            <p id="confirm-isbn" class="book-meta isbn"></p>
+          </div>
+        </div>
+        <div id="confirm-duplicate" class="duplicate-warning" hidden>
+          This book is already in your library.
+        </div>
+        <div class="book-detail-actions">
+          <label for="confirm-owner" class="field-label">Who owns this copy?</label>
+          <select id="confirm-owner" class="select-field">
+            <option value="Robert">Robert</option>
+            <option value="Mom">Mom</option>
+            <option value="Shared">Shared</option>
+          </select>
+          <label for="confirm-notes" class="field-label">Notes (optional)</label>
+          <input type="text" id="confirm-notes" class="text-field" placeholder="e.g. signed edition, lent to Jane…">
+          <div class="btn-row">
+            <button id="btn-back-scan" class="btn btn-secondary">Back</button>
+            <button id="btn-save-book" class="btn btn-primary">Add to library</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Library View -->
+    <section id="view-library" class="view">
+      <div class="library-toolbar">
+        <input type="search" id="library-search" placeholder="Search title, author, ISBN…" autocomplete="off">
+        <select id="library-filter-owner" class="select-field select-small">
+          <option value="">Everyone</option>
+          <option value="Robert">Robert</option>
+          <option value="Mom">Mom</option>
+          <option value="Shared">Shared</option>
+        </select>
+      </div>
+      <div id="library-grid" class="library-grid">
+        <!-- Books rendered here -->
+      </div>
+      <div id="library-empty" class="empty-state" hidden>
+        <p>No books yet — scan one to get started!</p>
+      </div>
+      <div id="library-no-results" class="empty-state" hidden>
+        <p>No books match your search.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-view="scan">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 4V1h3M20 1h3v3M1 20v3h3M20 24h3v-3"/>
+        <rect x="5" y="5" width="14" height="14" rx="1"/>
+        <line x1="9" y1="9" x2="9" y2="15"/>
+        <line x1="12" y1="9" x2="12" y2="15"/>
+        <line x1="15" y1="9" x2="15" y2="15"/>
+      </svg>
+      <span>Scan</span>
+    </button>
+    <button class="nav-btn" data-view="library">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+        <path d="M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15z"/>
+      </svg>
+      <span>Library</span>
+    </button>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/library.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
