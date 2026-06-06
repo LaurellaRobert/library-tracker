@@ -126,14 +126,28 @@ html, body {
 }
 
 #scanner-region {
-  width: 100%;
-  aspect-ratio: 4 / 3;
+  width: 100% !important;
+  max-width: 100% !important;
+  /* html5-qrcode sets inline height — let it, but clamp the width */
   background: #1c1917;
   border-radius: var(--radius);
   overflow: hidden;
 }
 
-#scanner-region video { border-radius: var(--radius); }
+/* html5-qrcode injects inline width/height on video and canvas —
+   force them to fill the container width and scale height naturally */
+#scanner-region video,
+#scanner-region canvas {
+  width: 100% !important;
+  height: auto !important;
+  border-radius: var(--radius);
+  display: block;
+}
+
+/* The inner div html5-qrcode wraps around the video */
+#scanner-region > div {
+  width: 100% !important;
+}
 
 .scanner-hint {
   text-align: center;
