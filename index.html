@@ -13,9 +13,26 @@
 </head>
 <body>
 
+  <!-- Login overlay -->
+  <div id="view-login" class="login-overlay" hidden>
+    <div class="login-card">
+      <h2 class="login-title">Library Tracker</h2>
+      <p class="login-subtitle">Sign in to access the library</p>
+      <form id="login-form">
+        <label class="field-label" for="login-email">Email</label>
+        <input type="email" id="login-email" class="text-field" placeholder="you@example.com" autocomplete="email" required>
+        <label class="field-label" for="login-password">Password</label>
+        <input type="password" id="login-password" class="text-field" placeholder="Password" autocomplete="current-password" required>
+        <p id="login-error" class="login-error" hidden></p>
+        <button type="submit" id="btn-login" class="btn btn-primary login-btn">Sign in</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="app-header">
     <h1>Library Tracker</h1>
+    <button id="btn-signout" class="btn-signout" title="Sign out">Sign out</button>
   </header>
 
   <!-- Views -->
@@ -36,21 +53,55 @@
       </div>
     </section>
 
-    <!-- Book Detail / Confirm View -->
+    <!-- Found / Already-owned View -->
+    <section id="view-found" class="view">
+      <div class="book-detail-card">
+        <div class="book-detail-top">
+          <img id="found-cover" class="book-cover-large" src="" alt="Book cover">
+          <div class="book-detail-info">
+            <h2 id="found-title"></h2>
+            <p id="found-author" class="book-author"></p>
+            <p id="found-publisher" class="book-meta"></p>
+            <p id="found-year" class="book-meta"></p>
+            <p id="found-isbn" class="book-meta isbn"></p>
+          </div>
+        </div>
+        <div class="found-banner">
+          <span class="found-check">✓</span>
+          <span id="found-owner-line">Already in your library</span>
+        </div>
+        <p id="found-notes" class="found-notes"></p>
+        <p id="found-added" class="found-added"></p>
+        <div class="btn-row">
+          <button id="btn-found-done" class="btn btn-primary">Done</button>
+          <button id="btn-found-add-anyway" class="btn btn-secondary">Add another copy</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add / Edit Book View -->
     <section id="view-confirm" class="view">
       <div class="book-detail-card">
         <div class="book-detail-top">
-          <img id="confirm-cover" class="book-cover-large" src="" alt="Book cover">
+          <div class="cover-col">
+            <img id="confirm-cover" class="book-cover-large" src="" alt="Book cover" onerror="this.src=''">
+            <input type="url" id="edit-cover-url" class="text-field edit-meta-field" placeholder="Image URL" hidden>
+          </div>
           <div class="book-detail-info">
-            <h2 id="confirm-title"></h2>
-            <p id="confirm-author" class="book-author"></p>
-            <p id="confirm-publisher" class="book-meta"></p>
-            <p id="confirm-year" class="book-meta"></p>
+            <div id="confirm-display">
+              <h2 id="confirm-title"></h2>
+              <p id="confirm-author" class="book-author"></p>
+              <p id="confirm-publisher" class="book-meta"></p>
+              <p id="confirm-year" class="book-meta"></p>
+            </div>
+            <div id="confirm-edit-fields" hidden>
+              <input type="text" id="edit-title" class="text-field edit-meta-field" placeholder="Title">
+              <input type="text" id="edit-author" class="text-field edit-meta-field" placeholder="Author">
+              <input type="text" id="edit-publisher" class="text-field edit-meta-field" placeholder="Publisher">
+              <input type="text" id="edit-year" class="text-field edit-meta-field" placeholder="Year published">
+            </div>
             <p id="confirm-isbn" class="book-meta isbn"></p>
           </div>
-        </div>
-        <div id="confirm-duplicate" class="duplicate-warning" hidden>
-          This book is already in your library.
         </div>
         <div class="book-detail-actions">
           <label for="confirm-owner" class="field-label">Who owns this copy?</label>
@@ -65,6 +116,7 @@
             <button id="btn-back-scan" class="btn btn-secondary">Back</button>
             <button id="btn-save-book" class="btn btn-primary">Add to library</button>
           </div>
+          <button id="btn-delete-book" class="btn-delete-link" hidden>Remove from library</button>
         </div>
       </div>
     </section>
@@ -73,12 +125,37 @@
     <section id="view-library" class="view">
       <div class="library-toolbar">
         <input type="search" id="library-search" placeholder="Search title, author, ISBN…" autocomplete="off">
-        <select id="library-filter-owner" class="select-field select-small">
-          <option value="">Everyone</option>
-          <option value="Robert">Robert</option>
-          <option value="Mom">Mom</option>
-          <option value="Shared">Shared</option>
-        </select>
+        <div class="library-controls">
+          <select id="library-filter-owner" class="select-field select-small">
+            <option value="">Everyone</option>
+            <option value="Robert">Robert</option>
+            <option value="Mom">Mom</option>
+            <option value="Shared">Shared</option>
+          </select>
+          <select id="library-sort" class="select-field select-small">
+            <option value="added">Date added</option>
+            <option value="title">Title</option>
+            <option value="author">Author</option>
+            <option value="year">Year published</option>
+          </select>
+          <div class="view-toggle" role="group" aria-label="View mode">
+            <button id="btn-view-grid" class="view-toggle-btn" aria-label="Grid view">
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+                <rect x="0" y="0" width="6.5" height="6.5" rx="1"/>
+                <rect x="8.5" y="0" width="6.5" height="6.5" rx="1"/>
+                <rect x="0" y="8.5" width="6.5" height="6.5" rx="1"/>
+                <rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1"/>
+              </svg>
+            </button>
+            <button id="btn-view-list" class="view-toggle-btn" aria-label="List view">
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+                <line x1="0" y1="3" x2="15" y2="3"/>
+                <line x1="0" y1="7.5" x2="15" y2="7.5"/>
+                <line x1="0" y1="12" x2="15" y2="12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
       <div id="library-grid" class="library-grid">
         <!-- Books rendered here -->
@@ -89,6 +166,115 @@
       <div id="library-no-results" class="empty-state" hidden>
         <p>No books match your search.</p>
       </div>
+    </section>
+
+    <!-- Import View -->
+    <section id="view-import" class="view">
+      <div class="import-wrap">
+
+        <!-- Pick state -->
+        <div id="import-pick">
+          <label id="import-dropzone" class="import-dropzone" for="import-file-input">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-light)">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span class="import-dropzone-label">Select CSV file</span>
+            <span class="import-dropzone-sub">or drag and drop here</span>
+            <span class="import-dropzone-hint">Expects columns: isbn, title, author</span>
+          </label>
+          <input type="file" id="import-file-input" accept=".csv,text/csv" hidden>
+        </div>
+
+        <!-- Preview state -->
+        <div id="import-preview" hidden>
+          <p id="import-count" class="import-count"></p>
+          <label class="field-label" for="import-owner">Owner</label>
+          <select id="import-owner" class="select-field">
+            <option value="Robert">Robert</option>
+            <option value="Mom">Mom</option>
+            <option value="Shared">Shared</option>
+          </select>
+          <div id="import-preview-list" class="import-preview-list"></div>
+          <div class="btn-row">
+            <button id="btn-import-clear" class="btn btn-secondary">Clear</button>
+            <button id="btn-import-go" class="btn btn-primary">Import</button>
+          </div>
+        </div>
+
+        <!-- Progress state -->
+        <div id="import-progress" hidden>
+          <p id="import-progress-text" class="import-progress-text">Importing…</p>
+          <div class="import-progress-track">
+            <div id="import-progress-bar" class="import-progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Done state -->
+        <div id="import-done" hidden>
+          <p class="import-done-icon">✓</p>
+          <p id="import-done-msg" class="import-done-msg"></p>
+          <button id="btn-import-again" class="btn btn-secondary">Import another file</button>
+        </div>
+
+      </div>
+
+      <!-- Enrich section -->
+      <div class="cleanup-card">
+        <h3 class="cleanup-heading">Enrich missing covers</h3>
+        <p class="cleanup-desc">Fetch covers, publisher and year from Open Library for books that are missing them.</p>
+
+        <div id="enrich-idle">
+          <button id="btn-enrich-now" class="btn btn-secondary cleanup-full-btn">Run now</button>
+        </div>
+
+        <div id="enrich-running" hidden>
+          <div class="working-state">
+            <span class="spinner"></span>
+            <p id="enrich-progress-text" class="working-label">Looking up books…</p>
+            <div class="import-progress-track working-progress">
+              <div id="enrich-progress-bar" class="import-progress-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="enrich-done" hidden>
+          <p id="enrich-done-msg" class="cleanup-status"></p>
+          <button id="btn-enrich-again" class="btn btn-secondary cleanup-full-btn">Run again</button>
+        </div>
+      </div>
+
+      <!-- Cleanup section -->
+      <div class="cleanup-card">
+        <h3 class="cleanup-heading">Clean up library</h3>
+        <p class="cleanup-desc">Fix trailing punctuation, broken case, extra whitespace, and remove entries with no useful data.</p>
+
+        <div id="cleanup-idle">
+          <button id="btn-cleanup-scan" class="btn btn-secondary cleanup-full-btn">Scan for issues</button>
+        </div>
+
+        <div id="cleanup-results" hidden>
+          <div id="cleanup-results-content"></div>
+          <div class="btn-row">
+            <button id="btn-cleanup-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="btn-cleanup-apply" class="btn btn-primary">Apply fixes</button>
+          </div>
+        </div>
+
+        <div id="cleanup-working" hidden>
+          <div class="working-state">
+            <span class="spinner"></span>
+            <p id="cleanup-working-msg" class="working-label">Working…</p>
+          </div>
+        </div>
+
+        <div id="cleanup-done" hidden>
+          <p id="cleanup-done-msg" class="cleanup-status"></p>
+          <button id="btn-cleanup-again" class="btn btn-secondary cleanup-full-btn">Scan again</button>
+        </div>
+      </div>
+
     </section>
 
   </main>
@@ -112,6 +298,15 @@
       </svg>
       <span>Library</span>
     </button>
+    <button class="nav-btn" data-view="import">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <polyline points="9 15 12 18 15 15"/>
+      </svg>
+      <span>Import</span>
+    </button>
   </nav>
 
   <!-- Toast -->
@@ -119,10 +314,10 @@
 
   <!-- Scripts -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/scanner.js"></script>
   <script src="js/library.js"></script>
+  <script src="js/importer.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

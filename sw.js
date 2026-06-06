@@ -1,18 +1,14 @@
-const CACHE_NAME = 'library-tracker-v1';
-const ASSETS = [
+const CACHE_NAME = 'library-tracker-v9';
+const STATIC = [
   './',
   './index.html',
   './css/style.css',
-  './js/app.js',
-  './js/scanner.js',
-  './js/library.js',
-  './js/supabase-client.js',
-  './manifest.json'
+  './manifest.json',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC))
   );
   self.skipWaiting();
 });
@@ -27,14 +23,26 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-first for API calls, cache-first for assets
-  if (event.request.url.includes('supabase.co') || event.request.url.includes('openlibrary.org')) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-  } else {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request))
-    );
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // JS files are never cached -- always fetch fresh so code changes take effect immediately
+  if (url.pathname.endsWith('.js')) {
+    event.respondWith(fetch(event.request));
+    return;
   }
+
+  // Network-first for everything else; fall back to cache if offline
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
 });

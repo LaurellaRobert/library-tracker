@@ -33,3 +33,8 @@ create policy "Allow public insert"
 create policy "Allow public delete"
   on public.books for delete
   using (true);
+
+create policy "Allow public update"
+  on public.books for update
+  using (true)
+  with check (true);
