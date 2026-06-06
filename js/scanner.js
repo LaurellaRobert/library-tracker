@@ -20,27 +20,34 @@ const Scanner = (() => {
     html5Qr = new Html5Qrcode(elementId);
 
     const config = {
-      fps: 10,
+      fps: 15,
       qrbox: (viewfinderWidth, viewfinderHeight) => {
-        // Rectangular scan region optimised for barcodes
-        const w = Math.min(viewfinderWidth * 0.85, 400);
-        const h = Math.min(viewfinderHeight * 0.4, 120);
-        return { width: Math.floor(w), height: Math.floor(h) };
+        const w = Math.min(Math.floor(viewfinderWidth * 0.9), 400);
+        // Keep height proportional to width like a real barcode (~2.5:1), don't cap too low
+        const h = Math.max(Math.min(Math.floor(w / 2.5), Math.floor(viewfinderHeight * 0.55)), 80);
+        return { width: w, height: h };
       },
       formatsToSupport: [
         Html5QrcodeSupportedFormats.EAN_13,
         Html5QrcodeSupportedFormats.EAN_8,
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E
-      ]
+      ],
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true,
+      },
     };
 
     try {
       await html5Qr.start(
-        { facingMode: 'environment' },
+        {
+          facingMode: { ideal: 'environment' },
+          width:  { min: 640, ideal: 1280 },
+          height: { min: 480, ideal: 720  },
+        },
         config,
         handleSuccess,
-        () => {} // ignore scan failures (no barcode in frame)
+        () => {} // ignore per-frame failures (no barcode in frame yet)
       );
       isRunning = true;
     } catch (err) {

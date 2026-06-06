@@ -128,25 +128,29 @@ html, body {
 #scanner-region {
   width: 100% !important;
   max-width: 100% !important;
-  /* html5-qrcode sets inline height — let it, but clamp the width */
+  aspect-ratio: 4 / 3;
   background: #1c1917;
   border-radius: var(--radius);
   overflow: hidden;
+  position: relative;
 }
 
-/* html5-qrcode injects inline width/height on video and canvas —
-   force them to fill the container width and scale height naturally */
+/* html5-qrcode injects inline width/height — force everything to fill
+   the 4:3 container so the scan area is consistently tall */
+#scanner-region > div {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  inset: 0;
+}
+
 #scanner-region video,
 #scanner-region canvas {
   width: 100% !important;
-  height: auto !important;
+  height: 100% !important;
+  object-fit: cover;
   border-radius: var(--radius);
   display: block;
-}
-
-/* The inner div html5-qrcode wraps around the video */
-#scanner-region > div {
-  width: 100% !important;
 }
 
 .scanner-hint {
