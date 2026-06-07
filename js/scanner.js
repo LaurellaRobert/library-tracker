@@ -1,12 +1,15 @@
 const Scanner = (() => {
   // native BarcodeDetector state
-  let nativeVideo   = null;
-  let nativeStream  = null;
+  let nativeVideo    = null;
+  let nativeStream   = null;
   let nativeDetector = null;
-  let rafId         = null;
-  let nativePaused  = false;
+  let rafId          = null;
+  let nativePaused   = false;
 
-  // html5-qrcode fallback state
+  // Quagga2 fallback state
+  let quaggaRunning = false;
+
+  // html5-qrcode last-resort state
   let html5Qr = null;
 
   let isRunning = false;
@@ -18,13 +21,15 @@ const Scanner = (() => {
 
     if ('BarcodeDetector' in window) {
       await startNative(elementId);
+    } else if (typeof Quagga !== 'undefined') {
+      await startQuagga(elementId);
     } else {
       await startLegacy(elementId);
     }
     isRunning = true;
   }
 
-  /* ---------- Native BarcodeDetector path (Chrome Android, iOS 17+ Safari) ---------- */
+  /* ---------- Native BarcodeDetector (Chrome/Edge on Android & desktop) ---------- */
 
   async function startNative(elementId) {
     const supported = await BarcodeDetector.getSupportedFormats();
@@ -67,7 +72,47 @@ const Scanner = (() => {
     if (isRunning && !nativePaused) rafId = requestAnimationFrame(tick);
   }
 
-  /* ---------- html5-qrcode fallback (older browsers) ---------- */
+  /* ---------- Quagga2 fallback (iOS Chrome, iOS Safari, Firefox, older browsers) ---------- */
+
+  function startQuagga(elementId) {
+    return new Promise((resolve, reject) => {
+      Quagga.init({
+        inputStream: {
+          type: 'LiveStream',
+          target: document.getElementById(elementId),
+          constraints: {
+            facingMode: 'environment',
+            width:  { ideal: 1280 },
+            height: { ideal: 720  },
+          },
+        },
+        decoder: {
+          readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader'],
+          multiple: false,
+        },
+        locate: true,
+      }, (err) => {
+        if (err) { reject(err); return; }
+        Quagga.start();
+        quaggaRunning = true;
+        resolve();
+      });
+
+      Quagga.onDetected((result) => {
+        if (!isRunning) return;
+        const raw     = result?.codeResult?.code ?? '';
+        const cleaned = raw.replace(/[^0-9Xx]/g, '');
+        if (cleaned.length === 13 || cleaned.length === 10) {
+          Quagga.offDetected();
+          Quagga.stop();
+          quaggaRunning = false;
+          onDetect(cleaned);
+        }
+      });
+    });
+  }
+
+  /* ---------- html5-qrcode last resort ---------- */
 
   async function startLegacy(elementId) {
     html5Qr = new Html5Qrcode(elementId);
@@ -103,6 +148,19 @@ const Scanner = (() => {
     if (nativeDetector) {
       nativePaused = false;
       rafId = requestAnimationFrame(tick);
+    } else if (typeof Quagga !== 'undefined' && !quaggaRunning) {
+      Quagga.onDetected((result) => {
+        const raw     = result?.codeResult?.code ?? '';
+        const cleaned = raw.replace(/[^0-9Xx]/g, '');
+        if (cleaned.length === 13 || cleaned.length === 10) {
+          Quagga.offDetected();
+          Quagga.stop();
+          quaggaRunning = false;
+          onDetect(cleaned);
+        }
+      });
+      Quagga.start();
+      quaggaRunning = true;
     } else if (html5Qr) {
       try { html5Qr.resume(); } catch (_) {}
     }
@@ -115,6 +173,7 @@ const Scanner = (() => {
     if (nativeVideo)  { nativeVideo.srcObject = null; nativeVideo.remove(); nativeVideo = null; }
     nativeDetector = null;
     nativePaused   = false;
+    if (quaggaRunning) { try { Quagga.stop(); } catch (_) {} quaggaRunning = false; }
     if (html5Qr) { try { await html5Qr.stop(); } catch (_) {} html5Qr = null; }
   }
 
