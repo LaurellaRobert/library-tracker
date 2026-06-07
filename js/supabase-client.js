@@ -139,7 +139,7 @@ const db = {
   },
 
   async getUnenriched() {
-    return sbFetch('/books?isbn=not.is.null&cover_url=is.null&select=id,isbn&order=added_at.asc&limit=50');
+    return sbFetch('/books?isbn=not.is.null&cover_url=is.null&select=id,isbn&order=added_at.asc');
   },
 
   async bulkInsert(books) {

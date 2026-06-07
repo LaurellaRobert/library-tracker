@@ -339,10 +339,12 @@ const Importer = (() => {
 
     if (!books || books.length === 0) {
       document.getElementById('enrich-done-msg').textContent =
-        'Nothing to enrich -- all ISBNs already have cover data.';
+        'All done — no books are missing covers.';
       showEnrichState('done');
       return;
     }
+
+    progressText.textContent = 'Found ' + books.length + ' book' + (books.length !== 1 ? 's' : '') + ' to enrich…';
 
     let enriched = 0, notFound = 0;
     const total = books.length;
@@ -371,10 +373,12 @@ const Importer = (() => {
     progressBar.style.width = '100%';
     const parts = [];
     if (enriched)  parts.push(enriched + ' updated');
-    if (notFound)  parts.push(notFound + ' not found on Open Library');
+    if (notFound)  parts.push(notFound + ' had no cover in any source');
     const remaining = await db.getUnenriched().catch(() => null);
-    if (remaining && remaining.length > 0) parts.push(remaining.length + ' more still pending');
-    document.getElementById('enrich-done-msg').textContent = (parts.join(', ') || 'Done') + '.';
+    if (remaining && remaining.length > 0) {
+      parts.push(remaining.length + ' still missing — run again to retry');
+    }
+    document.getElementById('enrich-done-msg').textContent = (parts.join('. ') || 'All done') + '.';
     showEnrichState('done');
   }
 
