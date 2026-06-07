@@ -95,6 +95,7 @@ async function lookupIsbn(isbn) {
   const confirmView = document.getElementById('view-confirm');
   const libraryView = document.getElementById('view-library');
   const importView  = document.getElementById('view-import');
+  const savedView   = document.getElementById('view-saved');
 
   const isbnForm  = document.getElementById('isbn-form');
   const isbnInput = document.getElementById('isbn-input');
@@ -126,6 +127,13 @@ async function lookupIsbn(isbn) {
   const confirmIsbn       = document.getElementById('confirm-isbn');
   const confirmOwner      = document.getElementById('confirm-owner');
   const confirmNotes      = document.getElementById('confirm-notes');
+  const savedCover      = document.getElementById('saved-cover');
+  const savedTitle      = document.getElementById('saved-title');
+  const savedAuthor     = document.getElementById('saved-author');
+  const savedIsbn       = document.getElementById('saved-isbn');
+  const btnSavedScan    = document.getElementById('btn-saved-scan');
+  const btnSavedLibrary = document.getElementById('btn-saved-library');
+
   const btnBack          = document.getElementById('btn-back-scan');
   const btnDelete        = document.getElementById('btn-delete-book');
   const btnSave          = document.getElementById('btn-save-book');
@@ -156,13 +164,14 @@ async function lookupIsbn(isbn) {
 
     if (name === 'scan')    { scanView.classList.add('active');    Scanner.resume(); }
     if (name === 'found')   { foundView.classList.add('active'); }
+    if (name === 'saved')   { savedView.classList.add('active'); }
     if (name === 'confirm') { confirmView.classList.add('active'); }
     if (name === 'library') { libraryView.classList.add('active'); Library.load(); }
     if (name === 'import')  { importView.classList.add('active'); }
 
     // Highlight the nav button that makes contextual sense
     let navTarget = name;
-    if (name === 'found' || (name === 'confirm' && !editingBook)) navTarget = 'scan';
+    if (name === 'found' || name === 'saved' || (name === 'confirm' && !editingBook)) navTarget = 'scan';
     if (name === 'confirm' && editingBook) navTarget = 'library';
     const activeBtn = document.querySelector(`.nav-btn[data-view="${navTarget}"]`);
     if (activeBtn) activeBtn.classList.add('active');
@@ -206,6 +215,9 @@ async function lookupIsbn(isbn) {
     foundIsbnVal = null;
     showView('scan');
   });
+
+  btnSavedScan.addEventListener('click', () => showView('scan'));
+  btnSavedLibrary.addEventListener('click', () => showView('library'));
 
   btnFoundAddAnyway.addEventListener('click', () => {
     const isbn = foundIsbnVal;
@@ -391,9 +403,12 @@ async function lookupIsbn(isbn) {
         const saved = await db.insert(record);
         Library.addLocal(saved);
         saveLastOwner(owner);
-        showToast(`"${saved.title}" added!`);
         pendingBook = null;
-        showView('scan');
+        savedCover.src        = saved.cover_url || '';
+        savedTitle.textContent  = saved.title;
+        savedAuthor.textContent = saved.author || '';
+        savedIsbn.textContent   = saved.isbn ? `ISBN ${saved.isbn}` : '';
+        showView('saved');
       }
     } catch (err) {
       if (err.message === 'AUTH_REQUIRED') { auth.signOut(); showLoginScreen(); return; }

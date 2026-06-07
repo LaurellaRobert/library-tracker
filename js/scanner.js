@@ -8,6 +8,7 @@ const Scanner = (() => {
 
   // Quagga2 fallback state
   let quaggaRunning = false;
+  let quaggaPaused  = false;
 
   // html5-qrcode last-resort state
   let html5Qr = null;
@@ -99,13 +100,11 @@ const Scanner = (() => {
       });
 
       Quagga.onDetected((result) => {
-        if (!isRunning) return;
+        if (!isRunning || quaggaPaused) return;
         const raw     = result?.codeResult?.code ?? '';
         const cleaned = raw.replace(/[^0-9Xx]/g, '');
         if (cleaned.length === 13 || cleaned.length === 10) {
-          Quagga.offDetected();
-          Quagga.stop();
-          quaggaRunning = false;
+          quaggaPaused = true; // stop acting on detections; stream stays alive
           onDetect(cleaned);
         }
       });
@@ -148,19 +147,8 @@ const Scanner = (() => {
     if (nativeDetector) {
       nativePaused = false;
       rafId = requestAnimationFrame(tick);
-    } else if (typeof Quagga !== 'undefined' && !quaggaRunning) {
-      Quagga.onDetected((result) => {
-        const raw     = result?.codeResult?.code ?? '';
-        const cleaned = raw.replace(/[^0-9Xx]/g, '');
-        if (cleaned.length === 13 || cleaned.length === 10) {
-          Quagga.offDetected();
-          Quagga.stop();
-          quaggaRunning = false;
-          onDetect(cleaned);
-        }
-      });
-      Quagga.start();
-      quaggaRunning = true;
+    } else if (quaggaRunning) {
+      quaggaPaused = false;
     } else if (html5Qr) {
       try { html5Qr.resume(); } catch (_) {}
     }
@@ -173,7 +161,7 @@ const Scanner = (() => {
     if (nativeVideo)  { nativeVideo.srcObject = null; nativeVideo.remove(); nativeVideo = null; }
     nativeDetector = null;
     nativePaused   = false;
-    if (quaggaRunning) { try { Quagga.stop(); } catch (_) {} quaggaRunning = false; }
+    if (quaggaRunning) { try { Quagga.stop(); } catch (_) {} quaggaRunning = false; quaggaPaused = false; }
     if (html5Qr) { try { await html5Qr.stop(); } catch (_) {} html5Qr = null; }
   }
 
