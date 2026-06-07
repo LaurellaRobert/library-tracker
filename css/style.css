@@ -128,29 +128,24 @@ html, body {
 #scanner-region {
   width: 100% !important;
   max-width: 100% !important;
-  aspect-ratio: 4 / 3;
   background: #1c1917;
   border-radius: var(--radius);
   overflow: hidden;
-  position: relative;
 }
 
-/* html5-qrcode injects inline width/height — force everything to fill
-   the 4:3 container so the scan area is consistently tall */
 #scanner-region > div {
   width: 100% !important;
-  height: 100% !important;
-  position: absolute !important;
-  inset: 0;
 }
 
+/* Let the library control height so the scan canvas matches the stream's
+   actual aspect ratio — forcing 4:3 on a 16:9 stream anisotropically
+   distorts the captured frames and breaks barcode detection */
 #scanner-region video,
 #scanner-region canvas {
   width: 100% !important;
-  height: 100% !important;
-  object-fit: cover;
-  border-radius: var(--radius);
+  height: auto !important;
   display: block;
+  border-radius: var(--radius);
 }
 
 .scanner-hint {
