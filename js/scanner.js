@@ -33,18 +33,11 @@ const Scanner = (() => {
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E
       ],
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true,
-      },
     };
 
     try {
       await html5Qr.start(
-        {
-          facingMode: { ideal: 'environment' },
-          width:  { ideal: 1280 },
-          height: { ideal: 720  },
-        },
+        { facingMode: 'environment' },
         config,
         handleSuccess,
         () => {} // ignore per-frame failures (no barcode in frame yet)
