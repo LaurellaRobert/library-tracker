@@ -1,5 +1,6 @@
-/* ---------- Open Library ISBN lookup (global so importer can use it) ---------- */
-async function lookupIsbn(isbn) {
+/* ---------- ISBN lookup with multi-source cover fallback ---------- */
+
+async function fetchOpenLibrary(isbn) {
   const resp = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
   if (!resp.ok) return null;
   const data = await resp.json();
@@ -23,13 +24,72 @@ async function lookupIsbn(isbn) {
     coverUrl = `https://covers.openlibrary.org/b/id/${data.covers[0]}-L.jpg`;
   }
 
+  // If the edition has no cover, try the parent Work record — it often does
+  if (!coverUrl && data.works && data.works.length > 0) {
+    try {
+      const wResp = await fetch(`https://openlibrary.org${data.works[0].key}.json`);
+      if (wResp.ok) {
+        const wData = await wResp.json();
+        if (wData.covers && wData.covers.length > 0) {
+          coverUrl = `https://covers.openlibrary.org/b/id/${wData.covers[0]}-L.jpg`;
+        }
+      }
+    } catch (_) {}
+  }
+
   return {
     isbn,
-    title:        data.title || 'Unknown title',
+    title:        data.title || '',
     author:       authorName,
     publisher:    (data.publishers && data.publishers[0]) || '',
     publish_year: data.publish_date || '',
     cover_url:    coverUrl,
+  };
+}
+
+async function fetchGoogleBooks(isbn) {
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1&fields=items(volumeInfo)`
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data.items?.length) return null;
+
+    const info = data.items[0].volumeInfo;
+    let coverUrl = '';
+    if (info.imageLinks?.thumbnail) {
+      coverUrl = info.imageLinks.thumbnail
+        .replace('http://', 'https://')
+        .replace('&edge=curl', '')
+        .replace(/zoom=\d+/, 'zoom=0');
+    }
+
+    return {
+      isbn,
+      title:        info.title || '',
+      author:       (info.authors && info.authors[0]) || '',
+      publisher:    info.publisher || '',
+      publish_year: info.publishedDate ? info.publishedDate.split('-')[0] : '',
+      cover_url:    coverUrl,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function lookupIsbn(isbn) {
+  const [ol, gb] = await Promise.all([fetchOpenLibrary(isbn), fetchGoogleBooks(isbn)]);
+  if (!ol && !gb) return null;
+
+  // Prefer OL metadata (more structured), fill gaps with Google Books
+  return {
+    isbn,
+    title:        ol?.title        || gb?.title        || 'Unknown title',
+    author:       ol?.author       || gb?.author       || '',
+    publisher:    ol?.publisher    || gb?.publisher    || '',
+    publish_year: ol?.publish_year || gb?.publish_year || '',
+    cover_url:    ol?.cover_url    || gb?.cover_url    || '',
   };
 }
 
