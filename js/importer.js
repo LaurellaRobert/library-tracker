@@ -67,26 +67,56 @@ const Importer = (() => {
 
   /* ---------- File handling ---------- */
 
+  // Same ISBN, or same title + author when there's no ISBN, counts as the same book
+  function bookKey(b) {
+    if (b.isbn) return 'i:' + b.isbn;
+    return 't:' + (b.title || '').trim().toLowerCase() + '|' + (b.author || '').trim().toLowerCase();
+  }
+
+  // Drop rows already in the library (or repeated within the file)
+  async function removeDuplicates(rows) {
+    let existing = [];
+    try { existing = await db.getAll(); } catch (_) { /* can't check — import everything */ }
+    const seen = new Set(existing.map(bookKey));
+    const fresh = [];
+    for (const r of rows) {
+      const k = bookKey(r);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      fresh.push(r);
+    }
+    return fresh;
+  }
+
   function handleFile(file) {
     if (!file || !file.name.match(/\.csv$/i)) {
-      alert('Please select a CSV file.');
+      showToast('Please select a CSV file');
       return;
     }
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const { rows, error } = parseCSV(e.target.result);
-      if (error) { alert(error); return; }
+      if (error) { showToast(error, 4000); return; }
       if (rows.length === 0) {
-        alert('No importable rows found. Make sure the file has isbn and/or title columns.');
+        showToast('No importable rows found — the file needs isbn and/or title columns', 4000);
         return;
       }
-      parsedRows = rows;
 
-      const label = rows.length + ' book' + (rows.length !== 1 ? 's' : '');
-      document.getElementById('import-count').textContent = label + ' ready to import';
-      document.getElementById('btn-import-go').textContent = 'Import ' + label;
+      const fresh   = await removeDuplicates(rows);
+      const skipped = rows.length - fresh.length;
+      const plural  = (n) => n + ' book' + (n !== 1 ? 's' : '');
+      if (fresh.length === 0) {
+        showToast('All ' + plural(rows.length) + ' in this file are already in your library', 4000);
+        reset();
+        return;
+      }
+      parsedRows = fresh;
 
-      renderPreview(rows);
+      document.getElementById('import-count').textContent = plural(fresh.length) + ' ready to import' +
+        (skipped ? ' · ' + skipped + ' already in your library will be skipped' : '');
+      document.getElementById('btn-import-go').textContent = 'Import ' + plural(fresh.length);
+
+      renderPreview(fresh);
       showState('preview');
     };
     reader.readAsText(file);
@@ -150,7 +180,7 @@ const Importer = (() => {
     } catch (err) {
       console.error('Import failed:', err);
       if (err.message === 'AUTH_REQUIRED') { auth.signOut(); location.reload(); return; }
-      alert('Import failed: ' + err.message);
+      showToast('Import failed: ' + err.message, 4000);
       showState('preview');
     }
   }
@@ -305,7 +335,7 @@ const Importer = (() => {
     } catch (err) {
       console.error('Cleanup failed:', err);
       if (err.message === 'AUTH_REQUIRED') { auth.signOut(); location.reload(); return; }
-      alert('Cleanup failed: ' + err.message);
+      showToast('Cleanup failed: ' + err.message, 4000);
       showCleanupState('idle');
     }
   }
@@ -332,7 +362,7 @@ const Importer = (() => {
       console.log('[Enrich] unenriched count:', books ? books.length : 0);
     } catch (err) {
       console.error('[Enrich] fetch error:', err);
-      alert('Could not fetch books: ' + err.message);
+      showToast('Could not fetch books: ' + err.message, 4000);
       showEnrichState('idle');
       return;
     }
@@ -410,7 +440,7 @@ const Importer = (() => {
         renderCleanupResults(pendingUpdate, pendingDelete);
         showCleanupState('results');
       } catch (err) {
-        alert('Scan failed: ' + err.message);
+        showToast('Scan failed: ' + err.message, 4000);
         showCleanupState('idle');
       }
     });

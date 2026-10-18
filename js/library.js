@@ -4,7 +4,10 @@ const Library = (() => {
   const SORT_DIR_KEY  = 'library-tracker-sort-dir';
 
   let allBooks     = [];
-  let lastRendered = [];
+  let loaded       = false; // true once the first fetch has succeeded
+  let loadFailed   = false;
+  let query        = '';    // current search text, applied on every render
+  let ownerFilter  = '';
   let viewMode     = localStorage.getItem(VIEW_MODE_KEY) || 'grid';
   let sortMode     = localStorage.getItem(SORT_KEY)      || 'added';
   let sortDir      = localStorage.getItem(SORT_DIR_KEY)  || 'asc';
@@ -54,38 +57,50 @@ const Library = (() => {
 
   async function load() {
     syncControls();
-    render(allBooks);
+    render();
     try {
-      allBooks = await db.getAll();
-      render(allBooks);
+      allBooks   = await db.getAll();
+      loaded     = true;
+      loadFailed = false;
     } catch (err) {
       console.error('Failed to load library:', err);
+      loadFailed = !loaded;
     }
+    render();
   }
 
-  async function filter(query, owner) {
-    try {
-      const results = await db.search(query, owner);
-      render(results);
-    } catch (err) {
-      console.error('Search error:', err);
-    }
+  // Search runs locally over the loaded books, so it's instant and survives
+  // tab switches and edits.
+  function filter(q, owner) {
+    query       = q;
+    ownerFilter = owner;
+    render();
+  }
+
+  function matches(book) {
+    if (ownerFilter && book.owner !== ownerFilter) return false;
+    if (!query) return true;
+    const q     = query.toLowerCase();
+    const qIsbn = q.replace(/[-\s]/g, '');
+    return (book.title  || '').toLowerCase().includes(q)
+        || (book.author || '').toLowerCase().includes(q)
+        || (!!qIsbn && (book.isbn || '').toLowerCase().includes(qIsbn));
   }
 
   function addLocal(book) {
     allBooks.unshift(book);
-    render(allBooks);
+    render();
   }
 
   function removeLocal(id) {
     allBooks = allBooks.filter((b) => b.id !== id);
-    render(allBooks);
+    render();
   }
 
   function updateLocal(book) {
     const idx = allBooks.findIndex((b) => b.id === book.id);
     if (idx !== -1) allBooks[idx] = book;
-    render(allBooks);
+    render();
   }
 
   /* ---------- UI state ---------- */
@@ -94,7 +109,7 @@ const Library = (() => {
     viewMode = mode;
     localStorage.setItem(VIEW_MODE_KEY, mode);
     syncControls();
-    render(lastRendered);
+    render();
   }
 
   function setSort(mode) {
@@ -103,7 +118,7 @@ const Library = (() => {
     localStorage.setItem(SORT_KEY,     mode);
     localStorage.setItem(SORT_DIR_KEY, 'asc');
     syncControls();
-    render(lastRendered);
+    render();
   }
 
   function getViewMode() { return viewMode; }
@@ -119,31 +134,43 @@ const Library = (() => {
 
   /* ---------- Rendering ---------- */
 
-  function render(books) {
-    lastRendered = books;
-    const toShow = sortBooks(books);
+  function render() {
+    const toShow = sortBooks(allBooks.filter(matches));
 
     const container = document.getElementById('library-grid');
+    const loading   = document.getElementById('library-loading');
     const empty     = document.getElementById('library-empty');
     const noResult  = document.getElementById('library-no-results');
+    const count     = document.getElementById('library-count');
 
     container.className = viewMode === 'list' ? 'library-list' : 'library-grid';
     container.innerHTML = '';
+    loading.hidden  = true;
+    empty.hidden    = true;
+    noResult.hidden = true;
 
-    if (allBooks.length === 0) {
-      empty.hidden    = false;
-      noResult.hidden = true;
+    const total  = allBooks.length;
+    const plural = (n) => n + ' book' + (n !== 1 ? 's' : '');
+    count.textContent = !total ? ''
+      : toShow.length === total ? plural(total)
+      : `${toShow.length} of ${plural(total)}`;
+
+    if (total === 0) {
+      if (loaded) {
+        empty.hidden = false;
+      } else {
+        loading.textContent = loadFailed
+          ? "Couldn't load your library — check your connection"
+          : 'Loading your library…';
+        loading.hidden = false;
+      }
       return;
     }
-
-    empty.hidden = true;
 
     if (toShow.length === 0) {
       noResult.hidden = false;
       return;
     }
-
-    noResult.hidden = true;
 
     const fragment = document.createDocumentFragment();
 
@@ -173,7 +200,7 @@ const Library = (() => {
             // Same column — toggle direction
             sortDir = sortDir === 'asc' ? 'desc' : 'asc';
             localStorage.setItem(SORT_DIR_KEY, sortDir);
-            render(lastRendered);
+            render();
           } else {
             // Different column — switch field, reset to asc
             setSort(btn.dataset.sort);
@@ -199,7 +226,7 @@ const Library = (() => {
         el.className = 'book-card';
         el.innerHTML = `
           <img class="book-card-cover"
-               src="${book.cover_url || PLACEHOLDER_COVER}"
+               src="${escapeHtml(book.cover_url) || PLACEHOLDER_COVER}"
                alt="${escapeHtml(book.title)}"
                loading="lazy"
                onerror="this.src='${PLACEHOLDER_COVER}'">
@@ -227,5 +254,5 @@ const Library = (() => {
     })[c]);
   }
 
-  return { load, filter, addLocal, removeLocal, updateLocal, setViewMode, setSort, getViewMode };
+  return { load, filter, addLocal, removeLocal, updateLocal, setViewMode, setSort, getViewMode, PLACEHOLDER_COVER };
 })();

@@ -30,16 +30,70 @@ function authHeaders() {
 
 /* ---------- Auth API ---------- */
 
+// Supabase Auth reports errors as `msg` (newer) or `error_description` / `message` (older)
+function authError(data, fallback) {
+  return new Error(data.msg || data.error_description || data.message || fallback);
+}
+
 async function signIn(email, password) {
   const res = await fetch(`${AUTH_BASE}/token?grant_type=password`, {
     method:  'POST',
     headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
     body:    JSON.stringify({ email, password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error_description || data.message || 'Sign-in failed');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw authError(data, 'Sign-in failed');
   storeAuth(data);
   return data;
+}
+
+// Emails a reset link that opens this app with a recovery token in the URL hash
+async function requestPasswordReset(email) {
+  const redirectTo = location.origin + location.pathname;
+  const res = await fetch(`${AUTH_BASE}/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
+    method:  'POST',
+    headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ email }),
+  });
+  if (!res.ok) throw authError(await res.json().catch(() => ({})), 'Could not send reset email');
+}
+
+// Sets a new password for the signed-in user (e.g. after following a reset/invite link)
+async function updatePassword(password) {
+  const res = await fetch(`${AUTH_BASE}/user`, {
+    method:  'PUT',
+    headers: authHeaders(),
+    body:    JSON.stringify({ password }),
+  });
+  if (!res.ok) throw authError(await res.json().catch(() => ({})), 'Could not update password');
+}
+
+/**
+ * Reset, invite and magic links land here with the session (or an error) in
+ * the URL hash. Stores the session, clears the hash, and reports what happened:
+ * { type: 'recovery' | 'invite' | 'signup' | 'magiclink' } or { error: message } or null.
+ */
+function consumeAuthRedirect() {
+  if (!location.hash || location.hash.length < 2) return null;
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (!p.has('access_token') && !p.has('error')) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+
+  if (p.has('error')) {
+    const code = p.get('error_code');
+    return {
+      error: code === 'otp_expired'
+        ? 'That link has expired or was already used. Request a new one below.'
+        : (p.get('error_description') || 'That link didn’t work. Request a new one below.').replace(/\+/g, ' '),
+    };
+  }
+  storeAuth({
+    access_token:  p.get('access_token'),
+    refresh_token: p.get('refresh_token'),
+    expires_at:    p.has('expires_at') ? Number(p.get('expires_at')) : undefined,
+    expires_in:    p.has('expires_in') ? Number(p.get('expires_in')) : undefined,
+  });
+  return { type: p.get('type') || 'magiclink' };
 }
 
 async function refreshSession() {
@@ -99,18 +153,6 @@ const db = {
     return sbFetch('/books?select=*&order=added_at.desc');
   },
 
-  async search(query, owner) {
-    const qs = ['select=*', 'order=added_at.desc'];
-    if (query) {
-      const q = encodeURIComponent(query);
-      qs.push(`or=(title.ilike.*${q}*,author.ilike.*${q}*,isbn.ilike.*${q}*)`);
-    }
-    if (owner) {
-      qs.push(`owner=eq.${encodeURIComponent(owner)}`);
-    }
-    return sbFetch(`/books?${qs.join('&')}`);
-  },
-
   async findByIsbn(isbn) {
     const rows = await sbFetch(`/books?isbn=eq.${encodeURIComponent(isbn)}&select=*&limit=1`);
     return rows?.length ? rows[0] : null;
@@ -153,4 +195,7 @@ const db = {
   },
 };
 
-const auth = { signIn, signOut, refreshSession, isAuthenticated };
+const auth = {
+  signIn, signOut, refreshSession, isAuthenticated,
+  requestPasswordReset, updatePassword, consumeAuthRedirect,
+};

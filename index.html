@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#2c1810">
   <title>Library Tracker</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -15,7 +16,7 @@
 
   <!-- Login overlay -->
   <div id="view-login" class="login-overlay" hidden>
-    <div class="login-card">
+    <div id="login-card" class="login-card">
       <h2 class="login-title">Library Tracker</h2>
       <p class="login-subtitle">Sign in to access the library</p>
       <form id="login-form">
@@ -24,7 +25,23 @@
         <label class="field-label" for="login-password">Password</label>
         <input type="password" id="login-password" class="text-field" placeholder="Password" autocomplete="current-password" required>
         <p id="login-error" class="login-error" hidden></p>
+        <p id="login-info" class="login-info" hidden></p>
         <button type="submit" id="btn-login" class="btn btn-primary login-btn">Sign in</button>
+        <button type="button" id="btn-forgot" class="login-link">Forgot password?</button>
+      </form>
+    </div>
+
+    <!-- Set a new password (after a reset or invite link) -->
+    <div id="password-card" class="login-card" hidden>
+      <h2 class="login-title">Set a new password</h2>
+      <p class="login-subtitle">Choose a password you'll use to sign in from now on</p>
+      <form id="password-form">
+        <label class="field-label" for="new-password">New password</label>
+        <input type="password" id="new-password" class="text-field" autocomplete="new-password" minlength="6" required>
+        <label class="field-label" for="new-password-confirm">Confirm password</label>
+        <input type="password" id="new-password-confirm" class="text-field" autocomplete="new-password" minlength="6" required>
+        <p id="password-error" class="login-error" hidden></p>
+        <button type="submit" id="btn-set-password" class="btn btn-primary login-btn">Save password</button>
       </form>
     </div>
   </div>
@@ -57,7 +74,7 @@
     <section id="view-found" class="view">
       <div class="book-detail-card">
         <div class="book-detail-top">
-          <img id="found-cover" class="book-cover-large" src="" alt="Book cover">
+          <img id="found-cover" class="book-cover-large" alt="Book cover">
           <div class="book-detail-info">
             <h2 id="found-title"></h2>
             <p id="found-author" class="book-author"></p>
@@ -83,7 +100,7 @@
     <section id="view-saved" class="view">
       <div class="book-detail-card">
         <div class="book-detail-top">
-          <img id="saved-cover" class="book-cover-large" src="" alt="Book cover">
+          <img id="saved-cover" class="book-cover-large" alt="Book cover">
           <div class="book-detail-info">
             <h2 id="saved-title"></h2>
             <p id="saved-author" class="book-author"></p>
@@ -106,7 +123,7 @@
       <div class="book-detail-card">
         <div class="book-detail-top">
           <div class="cover-col">
-            <img id="confirm-cover" class="book-cover-large" src="" alt="Book cover" onerror="this.src=''">
+            <img id="confirm-cover" class="book-cover-large" alt="Book cover">
             <input type="url" id="edit-cover-url" class="text-field edit-meta-field" placeholder="Image URL" hidden>
           </div>
           <div class="book-detail-info">
@@ -178,10 +195,12 @@
             </button>
           </div>
         </div>
+        <p id="library-count" class="library-count"></p>
       </div>
       <div id="library-grid" class="library-grid">
         <!-- Books rendered here -->
       </div>
+      <div id="library-loading" class="empty-state" hidden></div>
       <div id="library-empty" class="empty-state" hidden>
         <p>No books yet — scan one to get started!</p>
       </div>

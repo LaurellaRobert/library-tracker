@@ -72,11 +72,33 @@ html, body {
   text-align: center;
 }
 
+.login-info {
+  color: #15803d;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  text-align: center;
+}
+
 .login-btn {
   width: 100%;
   margin-top: 16px;
   padding: 12px;
 }
+
+.login-card[hidden] { display: none; }
+
+.login-link {
+  display: block;
+  margin: 12px auto 0;
+  background: none;
+  border: none;
+  color: var(--color-text-mid);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px;
+}
+.login-link:disabled { opacity: 0.5; cursor: default; }
 
 /* ===== Header ===== */
 .app-header {
@@ -240,6 +262,7 @@ html, body {
   border-radius: 6px;
   background: var(--color-border);
   display: block;
+  color: transparent; /* hide alt text while a cover is loading */
 }
 
 .book-detail-info { flex: 1; min-width: 0; }
@@ -312,6 +335,12 @@ html, body {
 .library-controls .select-small { flex: 1; }
 
 .select-small { width: auto; min-width: 100px; padding: 10px 8px; font-size: 0.85rem; }
+
+.library-count {
+  font-size: 0.78rem;
+  color: var(--color-text-light);
+}
+.library-count:empty { display: none; }
 
 /* ===== View toggle ===== */
 .view-toggle {
@@ -786,6 +815,12 @@ button.list-header-cell.active { color: var(--color-accent); }
 
 .working-progress {
   width: 100%;
+}
+
+/* ===== Touch devices ===== */
+/* iOS zooms the page when focusing a field under 16px; keep fields at 16px on touch screens */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
 }
 
 /* ===== Desktop tweaks ===== */
