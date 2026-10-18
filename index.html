@@ -209,9 +209,96 @@
       </div>
     </section>
 
-    <!-- Import View -->
+    <!-- Tools View -->
     <section id="view-import" class="view">
-      <div class="import-wrap">
+      <div class="tools-wrap">
+
+      <!-- Missing covers -->
+      <div class="tool-card">
+        <div class="tool-head">
+          <h3 class="tool-heading">Missing covers</h3>
+          <span id="covers-badge" class="tool-badge" hidden></span>
+        </div>
+        <p id="covers-desc" class="tool-desc">Checking your library…</p>
+
+        <div id="covers-setup" class="tool-setup" hidden>
+          <p><strong>One-time setup:</strong> so books with no cover anywhere aren't searched again every time, run this in Supabase → SQL Editor:</p>
+          <pre id="covers-setup-sql">alter table public.books add column if not exists cover_checked_at timestamptz;</pre>
+          <button id="btn-copy-sql" class="tool-link" type="button">Copy SQL</button>
+        </div>
+
+        <div id="covers-idle">
+          <button id="btn-covers-find" class="btn btn-primary tool-full-btn" hidden>Find covers</button>
+          <button id="btn-covers-retry" class="tool-link" type="button" hidden></button>
+        </div>
+
+        <div id="covers-running" hidden>
+          <p id="covers-progress-text" class="tool-progress-text">Searching…</p>
+          <div class="import-progress-track">
+            <div id="covers-progress-bar" class="import-progress-bar" style="width:0%"></div>
+          </div>
+          <button id="btn-covers-stop" class="btn btn-secondary tool-full-btn tool-stop">Stop</button>
+        </div>
+
+        <div id="covers-results" hidden>
+          <h4 id="covers-found-head" class="tool-subhead"></h4>
+          <div id="covers-found" class="cover-review-grid"></div>
+          <h4 id="covers-missing-head" class="tool-subhead" hidden></h4>
+          <p id="covers-missing-hint" class="tool-hint" hidden>Paste an image link to use it. Left blank, the book won't be searched again.</p>
+          <div id="covers-missing" class="cover-missing-list"></div>
+        </div>
+
+        <div id="covers-review" hidden>
+          <div class="btn-row">
+            <button id="btn-covers-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="btn-covers-save" class="btn btn-primary">Save</button>
+          </div>
+        </div>
+
+        <div id="covers-done" hidden>
+          <p id="covers-done-msg" class="tool-status"></p>
+          <button id="btn-covers-done" class="btn btn-secondary tool-full-btn">Done</button>
+        </div>
+      </div>
+
+      <!-- Tidy titles & authors -->
+      <div class="tool-card">
+        <div class="tool-head">
+          <h3 class="tool-heading">Tidy titles &amp; authors</h3>
+          <span id="text-badge" class="tool-badge" hidden></span>
+        </div>
+        <p id="text-desc" class="tool-desc">Checking your library…</p>
+
+        <div id="text-idle">
+          <button id="btn-text-review" class="btn btn-secondary tool-full-btn" hidden>Review changes</button>
+        </div>
+
+        <div id="text-review" hidden>
+          <div id="text-list" class="text-change-list"></div>
+          <div class="btn-row">
+            <button id="btn-text-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="btn-text-apply" class="btn btn-primary">Apply</button>
+          </div>
+        </div>
+
+        <div id="text-working" hidden>
+          <div class="working-state">
+            <span class="spinner"></span>
+            <p id="text-working-msg" class="working-label">Applying…</p>
+          </div>
+        </div>
+
+        <div id="text-done" hidden>
+          <p id="text-done-msg" class="tool-status"></p>
+          <button id="btn-text-done" class="btn btn-secondary tool-full-btn">Done</button>
+        </div>
+      </div>
+
+      <!-- Import -->
+      <div class="tool-card">
+        <div class="tool-head">
+          <h3 class="tool-heading">Import from CSV</h3>
+        </div>
 
         <!-- Pick state -->
         <div id="import-pick">
@@ -258,64 +345,9 @@
           <p id="import-done-msg" class="import-done-msg"></p>
           <button id="btn-import-again" class="btn btn-secondary">Import another file</button>
         </div>
-
       </div>
 
-      <!-- Enrich section -->
-      <div class="cleanup-card">
-        <h3 class="cleanup-heading">Enrich missing covers</h3>
-        <p class="cleanup-desc">Fetch covers, publisher and year from Open Library for books that are missing them.</p>
-
-        <div id="enrich-idle">
-          <button id="btn-enrich-now" class="btn btn-secondary cleanup-full-btn">Run now</button>
-        </div>
-
-        <div id="enrich-running" hidden>
-          <div class="working-state">
-            <span class="spinner"></span>
-            <p id="enrich-progress-text" class="working-label">Looking up books…</p>
-            <div class="import-progress-track working-progress">
-              <div id="enrich-progress-bar" class="import-progress-bar" style="width:0%"></div>
-            </div>
-          </div>
-        </div>
-
-        <div id="enrich-done" hidden>
-          <p id="enrich-done-msg" class="cleanup-status"></p>
-          <button id="btn-enrich-again" class="btn btn-secondary cleanup-full-btn">Run again</button>
-        </div>
       </div>
-
-      <!-- Cleanup section -->
-      <div class="cleanup-card">
-        <h3 class="cleanup-heading">Clean up library</h3>
-        <p class="cleanup-desc">Fix trailing punctuation, broken case, extra whitespace, and remove entries with no useful data.</p>
-
-        <div id="cleanup-idle">
-          <button id="btn-cleanup-scan" class="btn btn-secondary cleanup-full-btn">Scan for issues</button>
-        </div>
-
-        <div id="cleanup-results" hidden>
-          <div id="cleanup-results-content"></div>
-          <div class="btn-row">
-            <button id="btn-cleanup-cancel" class="btn btn-secondary">Cancel</button>
-            <button id="btn-cleanup-apply" class="btn btn-primary">Apply fixes</button>
-          </div>
-        </div>
-
-        <div id="cleanup-working" hidden>
-          <div class="working-state">
-            <span class="spinner"></span>
-            <p id="cleanup-working-msg" class="working-label">Working…</p>
-          </div>
-        </div>
-
-        <div id="cleanup-done" hidden>
-          <p id="cleanup-done-msg" class="cleanup-status"></p>
-          <button id="btn-cleanup-again" class="btn btn-secondary cleanup-full-btn">Scan again</button>
-        </div>
-      </div>
-
     </section>
 
   </main>
@@ -341,12 +373,9 @@
     </button>
     <button class="nav-btn" data-view="import">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="12" y1="18" x2="12" y2="12"/>
-        <polyline points="9 15 12 18 15 15"/>
+        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
       </svg>
-      <span>Import</span>
+      <span>Tools</span>
     </button>
   </nav>
 
@@ -360,6 +389,7 @@
   <script src="js/scanner.js"></script>
   <script src="js/library.js"></script>
   <script src="js/importer.js"></script>
+  <script src="js/tools.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

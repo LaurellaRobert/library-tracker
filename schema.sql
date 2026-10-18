@@ -11,8 +11,12 @@ create table public.books (
   cover_url    text,
   owner        text not null default 'Shared',
   notes        text,
-  added_at     timestamptz not null default now()
+  added_at     timestamptz not null default now(),
+  cover_checked_at timestamptz  -- set when no cover source had one, so it isn't searched again
 );
+
+-- Existing databases: add the column above with
+--   alter table public.books add column if not exists cover_checked_at timestamptz;
 
 -- 2. Index on ISBN for fast duplicate checks
 create index idx_books_isbn on public.books (isbn);

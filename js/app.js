@@ -78,9 +78,70 @@ async function fetchGoogleBooks(isbn) {
   }
 }
 
+/* ---------- Extra cover sources, tried when Open Library and Google have none ---------- */
+
+// Amazon image URLs use ISBN-10; 979-prefixed ISBNs have no ISBN-10 equivalent
+function isbn13to10(isbn) {
+  if (/^\d{9}[\dX]$/.test(isbn)) return isbn;
+  if (!/^978\d{10}$/.test(isbn)) return null;
+  const core = isbn.slice(3, 12);
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += (10 - i) * Number(core[i]);
+  const check = (11 - (sum % 11)) % 11;
+  return core + (check === 10 ? 'X' : String(check));
+}
+
+// True if the URL loads as a real image (Amazon serves a 1×1 GIF when it has no cover)
+function imageLoads(url, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timer = setTimeout(() => done(false), timeoutMs);
+    function done(ok) { clearTimeout(timer); img.onload = img.onerror = null; resolve(ok); }
+    img.onload  = () => done(img.naturalWidth > 1 && img.naturalHeight > 1);
+    img.onerror = () => done(false);
+    img.src = url;
+  });
+}
+
+let appleNextAt = 0; // Apple's lookup API allows roughly 20 calls a minute
+async function fetchAppleBooksCover(isbn) {
+  const wait = appleNextAt - Date.now();
+  appleNextAt = Math.max(Date.now(), appleNextAt) + 3100;
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  try {
+    const resp = await fetch(`https://itunes.apple.com/lookup?isbn=${isbn}`);
+    if (!resp.ok) return '';
+    const data = await resp.json();
+    const art  = data.results?.find((r) => r.artworkUrl100)?.artworkUrl100;
+    if (!art) return '';
+    const url = art.replace(/\/\d+x\d+bb\./, '/600x600bb.');
+    return (await imageLoads(url)) ? url : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function fetchAmazonCover(isbn) {
+  const isbn10 = isbn13to10(isbn);
+  if (!isbn10) return '';
+  const url = `https://images-na.ssl-images-amazon.com/images/P/${isbn10}.01.L.jpg`;
+  return (await imageLoads(url)) ? url : '';
+}
+
+// Apple Books is preferred; Amazon's image URLs are unofficial and could stop working
+async function findExtraCover(isbn) {
+  const [apple, amazon] = await Promise.all([fetchAppleBooksCover(isbn), fetchAmazonCover(isbn)]);
+  if (apple)  return { url: apple,  source: 'Apple Books' };
+  if (amazon) return { url: amazon, source: 'Amazon' };
+  return null;
+}
+
 async function lookupIsbn(isbn) {
   const [ol, gb] = await Promise.all([fetchOpenLibrary(isbn), fetchGoogleBooks(isbn)]);
   if (!ol && !gb) return null;
+
+  let coverUrl = ol?.cover_url || gb?.cover_url || '';
+  if (!coverUrl) coverUrl = (await findExtraCover(isbn))?.url || '';
 
   // Prefer OL metadata (more structured), fill gaps with Google Books
   return {
@@ -89,11 +150,24 @@ async function lookupIsbn(isbn) {
     author:       ol?.author       || gb?.author       || '',
     publisher:    ol?.publisher    || gb?.publisher    || '',
     publish_year: ol?.publish_year || gb?.publish_year || '',
-    cover_url:    ol?.cover_url    || gb?.cover_url    || '',
+    cover_url:    coverUrl,
   };
 }
 
-/* ---------- Toast (shared with importer.js) ---------- */
+// Cover (plus publisher/year when available) for an existing book, with where it came from
+async function findCover(isbn) {
+  const [ol, gb] = await Promise.all([fetchOpenLibrary(isbn).catch(() => null), fetchGoogleBooks(isbn)]);
+  const meta = {
+    publisher:    ol?.publisher    || gb?.publisher    || '',
+    publish_year: ol?.publish_year || gb?.publish_year || '',
+  };
+  if (ol?.cover_url) return { ...meta, url: ol.cover_url, source: 'Open Library' };
+  if (gb?.cover_url) return { ...meta, url: gb.cover_url, source: 'Google Books' };
+  const extra = await findExtraCover(isbn);
+  return extra ? { ...meta, ...extra } : { ...meta, url: '', source: '' };
+}
+
+/* ---------- Toast (shared with importer.js and tools.js) ---------- */
 
 let toastTimer = null;
 function showToast(message, duration = 2500) {
@@ -371,7 +445,7 @@ function showToast(message, duration = 2500) {
     if (name === 'saved')   { savedView.classList.add('active'); }
     if (name === 'confirm') { confirmView.classList.add('active'); }
     if (name === 'library') { libraryView.classList.add('active'); Library.load(); }
-    if (name === 'import')  { importView.classList.add('active'); }
+    if (name === 'import')  { importView.classList.add('active'); Tools.refresh(); }
 
     appMain.scrollTop = name === 'library' ? libraryScroll : 0;
 
@@ -489,6 +563,13 @@ function showToast(message, duration = 2500) {
       pendingBook = { isbn };
       showDetailFields({});
       setCover(confirmCover, '');
+      // Apple Books / Amazon may still have a cover even when there's no metadata
+      findExtraCover(isbn).then((extra) => {
+        if (extra && !stale() && !editCoverUrl.value) {
+          editCoverUrl.value = extra.url;
+          setCover(confirmCover, extra.url);
+        }
+      });
       showToast(failed ? 'Lookup failed — enter the details yourself' : 'No match found — enter the details yourself', 3500);
     }
 
@@ -670,10 +751,12 @@ function showToast(message, duration = 2500) {
   isbnForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const isbn = isbnInput.value.trim().replace(/[-\s]/g, '').toUpperCase();
-    if (/^\d{9}[\dX]$|^\d{13}$/.test(isbn)) {
+    if (Scanner.isValidIsbn(isbn)) {
       isbnInput.value = '';
       isbnInput.blur(); // dismiss the mobile keyboard
       handleIsbn(isbn);
+    } else if (/^\d{9}[\dX]$|^\d{13}$/.test(isbn)) {
+      showToast("That ISBN doesn't add up — check for a typo", 3500);
     } else if (isbn) {
       showToast('An ISBN is 10 or 13 digits — check and try again');
     }
@@ -698,12 +781,9 @@ function showToast(message, duration = 2500) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  /* ---------- Import ---------- */
-  if (typeof Importer === 'undefined') {
-    console.error('importer.js not loaded — check script tag in index.html');
-  } else {
-    Importer.init();
-  }
+  /* ---------- Tools tab (import + library maintenance) ---------- */
+  Importer.init();
+  Tools.init();
 
   /* ---------- Initial library pre-fetch ---------- */
   try { await Library.load(); } catch (_) {}

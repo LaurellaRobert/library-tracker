@@ -11,6 +11,14 @@ const Scanner = (() => {
   let regionId = null;
   let onDetect = null;
 
+  // A blurry or angled frame can decode to the wrong number, so a code only
+  // counts once it has been read this many times in a row.
+  const CONFIRM_READS  = 3;
+  const CONFIRM_WINDOW = 2000; // ms; a stale partial match doesn't carry over
+  let candidate      = null;
+  let candidateCount = 0;
+  let candidateAt    = 0;
+
   // native BarcodeDetector state
   let nativeVideo    = null;
   let nativeStream   = null;
@@ -40,7 +48,8 @@ const Scanner = (() => {
 
   async function sync() {
     if (wanted && !running) {
-      detected = false;
+      detected  = false;
+      candidate = null;
       session++;
       try {
         if ('BarcodeDetector' in window) {
@@ -60,13 +69,42 @@ const Scanner = (() => {
     }
   }
 
+  // ISBN-13 uses the EAN-13 check digit; ISBN-10 has its own mod-11 check
+  function isValidIsbn(isbn) {
+    if (/^\d{13}$/.test(isbn)) {
+      let sum = 0;
+      for (let i = 0; i < 12; i++) sum += Number(isbn[i]) * (i % 2 ? 3 : 1);
+      return (10 - (sum % 10)) % 10 === Number(isbn[12]);
+    }
+    if (/^\d{9}[\dX]$/.test(isbn)) {
+      let sum = 0;
+      for (let i = 0; i < 10; i++) sum += (isbn[i] === 'X' ? 10 : Number(isbn[i])) * (10 - i);
+      return sum % 11 === 0;
+    }
+    return false;
+  }
+
+  // Book barcodes are always EAN-13 starting 978 or 979 ("Bookland")
+  const isBookBarcode = (code) => /^97[89]\d{10}$/.test(code) && isValidIsbn(code);
+
   function report(rawValue) {
     if (detected || !wanted) return false;
-    const cleaned = (rawValue || '').replace(/[^0-9Xx]/g, '');
-    if (cleaned.length !== 13 && cleaned.length !== 10) return false;
+    const code = (rawValue || '').replace(/\D/g, '');
+    if (!isBookBarcode(code)) return false;
+
+    const now = Date.now();
+    if (code === candidate && now - candidateAt < CONFIRM_WINDOW) {
+      candidateCount++;
+    } else {
+      candidate      = code;
+      candidateCount = 1;
+    }
+    candidateAt = now;
+    if (candidateCount < CONFIRM_READS) return false;
+
     detected = true;
     if (navigator.vibrate) navigator.vibrate(60); // haptic "got it" on Android
-    onDetect(cleaned);
+    onDetect(code);
     return true;
   }
 
@@ -93,10 +131,8 @@ const Scanner = (() => {
   /* ---------- Native BarcodeDetector (Chrome/Edge on Android & desktop) ---------- */
 
   async function startNative() {
-    const supported = await BarcodeDetector.getSupportedFormats();
-    const want      = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
-    const formats   = want.filter((f) => supported.includes(f));
-    nativeDetector  = new BarcodeDetector({ formats: formats.length ? formats : ['ean_13'] });
+    // Books only use EAN-13; looking for other formats just invites false reads
+    nativeDetector = new BarcodeDetector({ formats: ['ean_13'] });
 
     nativeStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -152,7 +188,7 @@ const Scanner = (() => {
           },
         },
         decoder: {
-          readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader'],
+          readers: ['ean_reader'],
           multiple: false,
         },
         locate: true,
@@ -177,12 +213,7 @@ const Scanner = (() => {
         const qh = Math.max(Math.min(Math.floor(qw / 2.5), Math.floor(h * 0.55)), 80);
         return { width: qw, height: qh };
       },
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-      ],
+      formatsToSupport: [Html5QrcodeSupportedFormats.EAN_13],
     };
     await html5Qr.start({ facingMode: 'environment' }, config, (text) => report(text), () => {});
     running = 'legacy';
@@ -190,5 +221,5 @@ const Scanner = (() => {
 
   /* ---------- Public API ---------- */
 
-  return { start, stop };
+  return { start, stop, isValidIsbn };
 })();

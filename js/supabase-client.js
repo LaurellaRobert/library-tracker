@@ -180,10 +180,6 @@ const db = {
     await sbFetch(`/books?id=eq.${id}`, { method: 'DELETE' });
   },
 
-  async getUnenriched() {
-    return sbFetch('/books?isbn=not.is.null&cover_url=is.null&select=id,isbn&order=added_at.asc');
-  },
-
   async bulkInsert(books) {
     if (!books.length) return [];
     const rows = await sbFetch('/books?select=*', {

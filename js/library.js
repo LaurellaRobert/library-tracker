@@ -13,9 +13,9 @@ const Library = (() => {
   let sortDir      = localStorage.getItem(SORT_DIR_KEY)  || 'asc';
 
   const PLACEHOLDER_COVER = 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300" fill="%23e7e5e4">' +
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300" fill="#e7e5e4">' +
     '<rect width="200" height="300"/>' +
-    '<text x="100" y="155" text-anchor="middle" fill="%23a8a29e" font-family="sans-serif" font-size="14">No cover</text>' +
+    '<text x="100" y="155" text-anchor="middle" fill="#a8a29e" font-family="sans-serif" font-size="14">No cover</text>' +
     '</svg>'
   );
 
