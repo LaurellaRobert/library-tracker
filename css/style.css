@@ -916,3 +916,13 @@ button.list-header-cell.active { color: var(--color-accent); }
   .cover-col { width: 140px; }
   .book-cover-large { width: 140px; height: 200px; }
 }
+
+/* ===== Search-online link (book details not found) ===== */
+.search-online-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+.search-online-link[hidden] { display: none; }

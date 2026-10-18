@@ -47,11 +47,24 @@ async function fetchOpenLibrary(isbn) {
   };
 }
 
+// Without a key, Google Books draws on a daily quota shared by every keyless caller,
+// which is often used up (HTTP 429). A free key restricted to this site's URL gives
+// the app its own quota. Restricted (in Google Cloud) to laurellarobert.github.io and
+// the Books API, so it's safe to ship in client code.
+const GOOGLE_BOOKS_KEY = 'AIzaSyDHjaETkiG6esqPdLLYuPxfDnU8PJeUGb0';
+
 async function fetchGoogleBooks(isbn) {
   try {
-    const resp = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1&fields=items(volumeInfo)`
-    );
+    const key = GOOGLE_BOOKS_KEY ? `&key=${GOOGLE_BOOKS_KEY}` : '';
+    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1&fields=items(volumeInfo)${key}`;
+    let resp;
+    // Google intermittently answers 503 "temporarily unavailable"; a quick retry usually gets through
+    for (let attempt = 0; attempt < 3; attempt++) {
+      resp = await fetch(url);
+      if (resp.status !== 503) break;
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+    if (resp.status === 429) console.warn('Google Books quota exhausted — check GOOGLE_BOOKS_KEY in app.js');
     if (!resp.ok) return null;
     const data = await resp.json();
     if (!data.items?.length) return null;
@@ -104,20 +117,40 @@ function imageLoads(url, timeoutMs = 8000) {
 }
 
 let appleNextAt = 0; // Apple's lookup API allows roughly 20 calls a minute
-async function fetchAppleBooksCover(isbn) {
+const appleCache = new Map(); // one Apple call per ISBN, shared by details and cover lookups
+
+// Apple Books (ebook editions): title, author, release year and cover, or null
+function fetchAppleBooks(isbn) {
+  if (!appleCache.has(isbn)) appleCache.set(isbn, appleLookup(isbn));
+  return appleCache.get(isbn);
+}
+
+async function appleLookup(isbn) {
   const wait = appleNextAt - Date.now();
   appleNextAt = Math.max(Date.now(), appleNextAt) + 3100;
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   try {
     const resp = await fetch(`https://itunes.apple.com/lookup?isbn=${isbn}`);
-    if (!resp.ok) return '';
+    if (!resp.ok) { appleCache.delete(isbn); return null; } // rate-limited etc: allow a retry later
     const data = await resp.json();
-    const art  = data.results?.find((r) => r.artworkUrl100)?.artworkUrl100;
-    if (!art) return '';
-    const url = art.replace(/\/\d+x\d+bb\./, '/600x600bb.');
-    return (await imageLoads(url)) ? url : '';
+    const r = data.results?.find((x) => x.trackName || x.artworkUrl100);
+    if (!r) return null;
+    let coverUrl = '';
+    if (r.artworkUrl100) {
+      const url = r.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.');
+      if (await imageLoads(url)) coverUrl = url;
+    }
+    return {
+      isbn,
+      title:        r.trackName  || '',
+      author:       r.artistName || '',
+      publisher:    '',
+      publish_year: r.releaseDate ? r.releaseDate.slice(0, 4) : '',
+      cover_url:    coverUrl,
+    };
   } catch (_) {
-    return '';
+    appleCache.delete(isbn);
+    return null;
   }
 }
 
@@ -130,26 +163,30 @@ async function fetchAmazonCover(isbn) {
 
 // Apple Books is preferred; Amazon's image URLs are unofficial and could stop working
 async function findExtraCover(isbn) {
-  const [apple, amazon] = await Promise.all([fetchAppleBooksCover(isbn), fetchAmazonCover(isbn)]);
-  if (apple)  return { url: apple,  source: 'Apple Books' };
+  const [apple, amazon] = await Promise.all([fetchAppleBooks(isbn), fetchAmazonCover(isbn)]);
+  if (apple?.cover_url) return { url: apple.cover_url, source: 'Apple Books' };
   if (amazon) return { url: amazon, source: 'Amazon' };
   return null;
 }
 
 async function lookupIsbn(isbn) {
   const [ol, gb] = await Promise.all([fetchOpenLibrary(isbn), fetchGoogleBooks(isbn)]);
-  if (!ol && !gb) return null;
+
+  // Apple Books fills in when Open Library and Google lack the title or author
+  const needApple = !(ol?.title || gb?.title) || !(ol?.author || gb?.author);
+  const apple = needApple ? await fetchAppleBooks(isbn) : null;
+  if (!ol && !gb && !apple?.title) return null;
 
   let coverUrl = ol?.cover_url || gb?.cover_url || '';
   if (!coverUrl) coverUrl = (await findExtraCover(isbn))?.url || '';
 
-  // Prefer OL metadata (more structured), fill gaps with Google Books
+  // Each field from the first source that has it: Open Library → Google Books → Apple Books
   return {
     isbn,
-    title:        ol?.title        || gb?.title        || 'Unknown title',
-    author:       ol?.author       || gb?.author       || '',
+    title:        ol?.title        || gb?.title        || apple?.title        || 'Unknown title',
+    author:       ol?.author       || gb?.author       || apple?.author       || '',
     publisher:    ol?.publisher    || gb?.publisher    || '',
-    publish_year: ol?.publish_year || gb?.publish_year || '',
+    publish_year: ol?.publish_year || gb?.publish_year || apple?.publish_year || '',
     cover_url:    coverUrl,
   };
 }
@@ -365,6 +402,7 @@ function showToast(message, duration = 2500) {
   const editPublisher     = document.getElementById('edit-publisher');
   const editYear          = document.getElementById('edit-year');
   const confirmIsbn       = document.getElementById('confirm-isbn');
+  const confirmSearchLink = document.getElementById('confirm-search-link');
   const confirmOwner      = document.getElementById('confirm-owner');
   const confirmNotes      = document.getElementById('confirm-notes');
   const savedCover      = document.getElementById('saved-cover');
@@ -562,6 +600,7 @@ function showToast(message, duration = 2500) {
       // No match — let the user type the details in rather than saving "Unknown title"
       pendingBook = { isbn };
       showDetailFields({});
+      showSearchLink(isbn);
       setCover(confirmCover, '');
       // Apple Books / Amazon may still have a cover even when there's no metadata
       findExtraCover(isbn).then((extra) => {
@@ -586,6 +625,7 @@ function showToast(message, duration = 2500) {
 
     setCover(confirmCover, book.cover_url);
     showDetailFields(book);
+    showSearchLink(book.isbn);
     confirmIsbn.textContent = book.isbn ? `ISBN ${book.isbn}` : '';
     confirmOwner.value      = book.owner;
     confirmNotes.value      = book.notes || '';
@@ -610,6 +650,7 @@ function showToast(message, duration = 2500) {
     btnSave.textContent          = 'Add to library';
     btnBack.textContent          = 'Back';
     btnDelete.hidden             = true;
+    confirmSearchLink.hidden     = true;
     confirmDisplay.hidden        = false;
     confirmEditFields.hidden     = true;
     editCoverUrl.hidden          = true;
@@ -621,6 +662,12 @@ function showToast(message, duration = 2500) {
     btnDelete.hidden             = false;
     btnDelete.textContent        = 'Remove from library';
     btnDelete.classList.remove('btn-delete-confirming');
+  }
+
+  // Opens a web search for the ISBN in a new tab, to copy details no source had
+  function showSearchLink(isbn) {
+    confirmSearchLink.hidden = !isbn;
+    if (isbn) confirmSearchLink.href = `https://www.google.com/search?q=ISBN+${encodeURIComponent(isbn)}`;
   }
 
   // Swap the read-only details for editable fields, prefilled from `book`
